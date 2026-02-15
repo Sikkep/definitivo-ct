@@ -264,10 +264,16 @@ export default function Home() {
         formData.append('files', files[i])
       }
 
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 120000) // 2 minutos de timeout
+
       const response = await fetch('/api/upload', {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: controller.signal
       })
+
+      clearTimeout(timeoutId)
 
       const result = await response.json()
 
@@ -282,13 +288,20 @@ export default function Home() {
       } else {
         setUploadResult({
           success: false,
-          message: result.error || 'Erro ao processar arquivo'
+          message: result.error || result.details || 'Erro ao processar arquivo'
         })
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Erro no upload:', error)
+      let errorMessage = 'Erro de conexão ao enviar arquivo'
+      if (error.name === 'AbortError') {
+        errorMessage = 'Tempo limite excedido. O arquivo pode ser muito grande.'
+      } else if (error.message) {
+        errorMessage = `Erro: ${error.message}`
+      }
       setUploadResult({
         success: false,
-        message: 'Erro de conexão ao enviar arquivo'
+        message: errorMessage
       })
     } finally {
       setUploading(false)
