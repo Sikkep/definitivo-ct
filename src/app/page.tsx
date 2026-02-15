@@ -275,7 +275,16 @@ export default function Home() {
 
       clearTimeout(timeoutId)
 
-      const result = await response.json()
+      // Tentar ler a resposta como texto primeiro
+      const responseText = await response.text()
+      let result
+      
+      try {
+        result = JSON.parse(responseText)
+      } catch (parseError) {
+        console.error('Resposta não é JSON:', responseText.substring(0, 500))
+        throw new Error('Servidor retornou erro inesperado. Verifique se o Blob storage está configurado.')
+      }
 
       if (response.ok) {
         setUploadResult({
@@ -297,7 +306,7 @@ export default function Home() {
       if (error.name === 'AbortError') {
         errorMessage = 'Tempo limite excedido. O arquivo pode ser muito grande.'
       } else if (error.message) {
-        errorMessage = `Erro: ${error.message}`
+        errorMessage = error.message
       }
       setUploadResult({
         success: false,

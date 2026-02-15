@@ -8,6 +8,15 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
+    // Verificar se o token do Blob está configurado
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.error("BLOB_READ_WRITE_TOKEN não configurado");
+      return NextResponse.json({ 
+        error: "Blob storage não configurado", 
+        details: "A variável de ambiente BLOB_READ_WRITE_TOKEN não está definida. Configure no Vercel Dashboard." 
+      }, { status: 500 });
+    }
+
     const formData = await request.formData();
     
     // Aceitar múltiplos arquivos
