@@ -361,6 +361,15 @@ export default function Home() {
               </div>
             </div>
             <span className="text-xs text-blue-300">©Daniel Villa</span>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="text-white hover:bg-blue-700 ml-4"
+              onClick={() => setModalOpen(true)}
+              title="Configurações"
+            >
+              <Settings className="w-5 h-5" />
+            </Button>
           </div>
         </div>
       </header>
