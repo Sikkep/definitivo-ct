@@ -181,6 +181,90 @@ export default function Home() {
     setLoading(true)
     setError(null)
     try {
+      // Verificar se há dados no localStorage
+      const localData = localStorage.getItem('crivo-data')
+      if (localData) {
+        console.log('Usando dados do localStorage')
+        const parsedData = JSON.parse(localData)
+        
+        // Aplicar filtros localmente
+        let filteredData = [...parsedData.data]
+        if (ufSelecionado !== 'todos') filteredData = filteredData.filter(d => d.UF === ufSelecionado)
+        if (campusSelecionado !== 'todos') filteredData = filteredData.filter(d => d.NOME_CAMPUS === campusSelecionado)
+        if (cursoSelecionado !== 'todos') filteredData = filteredData.filter(d => d.NOME_CURSO === cursoSelecionado)
+        if (turnoSelecionado !== 'todos') filteredData = filteredData.filter(d => d.TURNO === turnoSelecionado)
+
+        const totais = {
+          totalInscritos: filteredData.reduce((sum: number, d: any) => sum + d.INSCRITOS, 0),
+          totalMatFin: filteredData.reduce((sum: number, d: any) => sum + d.MAT_FIN, 0),
+          totalFinDoc: filteredData.reduce((sum: number, d: any) => sum + d.FIN_DOC, 0),
+          totalPE: filteredData.reduce((sum: number, d: any) => sum + d.PE, 0),
+          totalGap: filteredData.reduce((sum: number, d: any) => sum + d.GAP, 0),
+          totalMatAcad: filteredData.reduce((sum: number, d: any) => sum + d.MAT_ACAD, 0),
+          totalRegistros: filteredData.length,
+          totalConfirmados: filteredData.filter((d: any) => d.FIN_DOC >= d.PE).length,
+          totalStandby: filteredData.filter((d: any) => d.FIN_DOC < d.PE).length,
+        }
+
+        const porUF = Object.entries(
+          filteredData.reduce((acc: any, d: any) => {
+            if (!acc[d.UF]) acc[d.UF] = { inscritos: 0, matFin: 0, matAcad: 0 }
+            acc[d.UF].inscritos += d.INSCRITOS
+            acc[d.UF].matFin += d.MAT_FIN
+            acc[d.UF].matAcad += d.MAT_ACAD
+            return acc
+          }, {})
+        ).map(([uf, values]: [string, any]) => ({ uf, ...values }))
+
+        const porCampus = Object.entries(
+          filteredData.reduce((acc: any, d: any) => {
+            if (!acc[d.NOME_CAMPUS]) acc[d.NOME_CAMPUS] = { inscritos: 0, matFin: 0, matAcad: 0 }
+            acc[d.NOME_CAMPUS].inscritos += d.INSCRITOS
+            acc[d.NOME_CAMPUS].matFin += d.MAT_FIN
+            acc[d.NOME_CAMPUS].matAcad += d.MAT_ACAD
+            return acc
+          }, {})
+        ).map(([campus, values]: [string, any]) => ({ campus, ...values }))
+          .sort((a: any, b: any) => b.matFin - a.matFin)
+          .slice(0, 10)
+
+        const porCurso = Object.entries(
+          filteredData.reduce((acc: any, d: any) => {
+            if (!acc[d.NOME_CURSO]) acc[d.NOME_CURSO] = { inscritos: 0, matFin: 0, matAcad: 0 }
+            acc[d.NOME_CURSO].inscritos += d.INSCRITOS
+            acc[d.NOME_CURSO].matFin += d.MAT_FIN
+            acc[d.NOME_CURSO].matAcad += d.MAT_ACAD
+            return acc
+          }, {})
+        ).map(([curso, values]: [string, any]) => ({ curso, ...values }))
+          .sort((a: any, b: any) => b.matFin - a.matFin)
+          .slice(0, 10)
+
+        const porTurno = Object.entries(
+          filteredData.reduce((acc: any, d: any) => {
+            if (!acc[d.TURNO]) acc[d.TURNO] = { inscritos: 0, matFin: 0, matAcad: 0 }
+            acc[d.TURNO].inscritos += d.INSCRITOS
+            acc[d.TURNO].matFin += d.MAT_FIN
+            acc[d.TURNO].matAcad += d.MAT_ACAD
+            return acc
+          }, {})
+        ).map(([turno, values]: [string, any]) => ({ turno, ...values }))
+
+        setData({
+          data: filteredData,
+          filters: parsedData.filters,
+          totais,
+          porUF,
+          porCampus,
+          porCurso,
+          porTurno
+        })
+        setLoading(false)
+        return
+      }
+
+      // Se não há dados locais, buscar da API
+      console.log('Carregando dados da API...')
       const params = new URLSearchParams()
       if (ufSelecionado !== 'todos') params.append('uf', ufSelecionado)
       if (campusSelecionado !== 'todos') params.append('campus', campusSelecionado)
@@ -202,6 +286,56 @@ export default function Home() {
   const fetchMetaData = useCallback(async () => {
     setMetaLoading(true)
     try {
+      // Verificar se há dados no localStorage
+      const localData = localStorage.getItem('cap-meta-data')
+      if (localData) {
+        console.log('Usando meta do localStorage')
+        const parsedData = JSON.parse(localData)
+        
+        // Aplicar filtros localmente
+        let filteredData = [...(parsedData.data || [])]
+        if (metaCampusSelecionado !== 'todos') filteredData = filteredData.filter(d => d.campus === metaCampusSelecionado)
+        if (metaRegionalSelecionado !== 'todos') filteredData = filteredData.filter(d => d.regional === metaRegionalSelecionado)
+
+        const filteredTotais = {
+          inscritosMeta: filteredData.reduce((s: number, d: any) => s + d.inscritosMeta, 0),
+          matFinMeta: filteredData.reduce((s: number, d: any) => s + d.matFinMeta, 0),
+          finDocMeta: filteredData.reduce((s: number, d: any) => s + d.finDocMeta, 0),
+          matAcadMeta: filteredData.reduce((s: number, d: any) => s + d.matAcadMeta, 0),
+          inscritosAtual: filteredData.reduce((s: number, d: any) => s + d.inscritosAtual, 0),
+          matFinAtual: filteredData.reduce((s: number, d: any) => s + d.matFinAtual, 0),
+          finDocAtual: filteredData.reduce((s: number, d: any) => s + d.finDocAtual, 0),
+          matAcadAtual: filteredData.reduce((s: number, d: any) => s + d.matAcadAtual, 0),
+          totalCampus: filteredData.length,
+          campusComMeta: filteredData.filter((d: any) => d.matFinMeta > 0).length,
+          campusAtingindoMatFin: filteredData.filter((d: any) => d.matFinMeta > 0 && d.matFinAtual >= d.matFinMeta).length,
+        }
+
+        const comMeta = filteredData.filter((d: any) => d.matFinMeta > 0)
+        
+        const topPerformers = comMeta
+          .map((d: any) => ({ ...d, percMatFin: d.matFinMeta > 0 ? (d.matFinAtual / d.matFinMeta) * 100 : 0 }))
+          .sort((a: any, b: any) => b.percMatFin - a.percMatFin)
+          .slice(0, 10)
+
+        const bottomPerformers = comMeta
+          .map((d: any) => ({ ...d, percMatFin: d.matFinMeta > 0 ? (d.matFinAtual / d.matFinMeta) * 100 : 0 }))
+          .sort((a: any, b: any) => a.percMatFin - b.percMatFin)
+          .slice(0, 10)
+
+        setMetaData({
+          data: filteredData,
+          filters: parsedData.filters,
+          totais: filteredTotais,
+          topPerformers,
+          bottomPerformers
+        })
+        setMetaLoading(false)
+        return
+      }
+
+      // Se não há dados locais, buscar da API
+      console.log('Carregando meta da API...')
       const params = new URLSearchParams()
       params.append('view', 'summary')
       if (metaCampusSelecionado !== 'todos') params.append('campus', metaCampusSelecionado)
@@ -249,6 +383,208 @@ export default function Home() {
     }
   }
 
+  // ====== PROCESSAR EXCEL LOCALMENTE ======
+  const processExcelLocally = async (files: FileList) => {
+    // Importar xlsx dinamicamente
+    const XLSX = await import('xlsx')
+    
+    let allCrivoData: any[] = []
+    let allCapData: any[] = []
+    const processedFiles: string[] = []
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      processedFiles.push(file.name)
+      
+      // Ler arquivo
+      const arrayBuffer = await file.arrayBuffer()
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+      
+      // Processar aba CRIVO
+      const crivoSheetName = workbook.SheetNames.find(name => 
+        name.toUpperCase().includes('CRIVO')
+      )
+      
+      if (crivoSheetName) {
+        const sheet = workbook.Sheets[crivoSheetName]
+        const data = XLSX.utils.sheet_to_json(sheet)
+        allCrivoData = [...allCrivoData, ...data]
+      }
+
+      // Processar aba CAP
+      const capSheetName = workbook.SheetNames.find(name => 
+        name.toUpperCase().includes('CAP')
+      )
+      
+      if (capSheetName) {
+        const sheet = workbook.Sheets[capSheetName]
+        const data = XLSX.utils.sheet_to_json(sheet)
+        allCapData = [...allCapData, ...data]
+      }
+    }
+
+    // Helper para converter números com vírgula
+    const parseNum = (val: any) => Number(String(val || 0).replace(',', '.')) || 0
+
+    // Criar mapa de PE por curso do CRIVO
+    const pePorCurso: Record<string, number> = {}
+    allCrivoData.forEach((row: any) => {
+      const curso = String(row['NOME DO CURSO'] || row.NOME_CURSO || '')
+      const pe = Number(row['P.E.'] || row.PE || row['P.E'] || 0)
+      if (curso && pe > 0 && !pePorCurso[curso]) {
+        pePorCurso[curso] = pe
+      }
+    })
+
+    // Criar mapa de PE por SKU do CRIVO
+    const pePorSKU: Record<string, number> = {}
+    allCrivoData.forEach((row: any) => {
+      const sku = String(row.SKU || '')
+      const pe = Number(row['P.E.'] || row.PE || row['P.E'] || 0)
+      if (sku && pe > 0) {
+        pePorSKU[sku] = pe
+      }
+    })
+
+    // Filtrar CAP: apenas ativos e período 2026.1
+    const filteredCapData = allCapData.filter((row: any) => {
+      const flagDesistente = String(row.F_DESISTENTE || '0')
+      const periodo = String(row.PERIODO_ACADEMICO || '2026.1')
+      
+      const isAtivo = flagDesistente === '0' || flagDesistente === '' || flagDesistente === '0,000000'
+      const isPeriodoCorreto = periodo.includes('2026.1')
+      
+      return isAtivo && isPeriodoCorreto
+    })
+    
+    // Agrupar dados do CAP por SKU
+    const capDataMap = new Map<string, any>()
+    
+    filteredCapData.forEach((row: any) => {
+      const codCampus = String(row.COD_CAMPUS || '').split(/[,.]/)[0].trim()
+      const codCurso = String(row.COD_CURSO || '').split(/[,.]/)[0].trim()
+      const codTurno = String(row.COD_TURNO || '').split(/[,.]/)[0].trim()
+      const sku = `${codCampus}${codCurso}${codTurno}`
+      
+      if (!sku || sku.length < 3) return
+      
+      if (!capDataMap.has(sku)) {
+        capDataMap.set(sku, {
+          INSCRITOS: 0, MAT_FIN: 0, FIN_DOC: 0, MAT_ACAD: 0,
+          NOME_CAMPUS: row.NOM_CAMPUS || '',
+          NOME_CURSO: row.NOM_CURSO || '',
+          TURNO: row.NOM_TURNO || '',
+        })
+      }
+      
+      const entry = capDataMap.get(sku)!
+      entry.INSCRITOS += parseNum(row.INSCRITOS_ATUAL)
+      entry.MAT_FIN += parseNum(row.MAT_FIN_ATUAL)
+      entry.FIN_DOC += parseNum(row.FIN_DOC_ATUAL)
+      entry.MAT_ACAD += parseNum(row.MAT_ACAD_ATUAL)
+    })
+
+    // Processar dados do CRIVO com dados do CAP
+    const processedCrivoData = allCrivoData.map((row: any) => {
+      const sku = String(row.SKU || '')
+      const capInfo = capDataMap.get(sku) || { INSCRITOS: 0, MAT_FIN: 0, FIN_DOC: 0, MAT_ACAD: 0 }
+      
+      // PE: primeiro do CRIVO, senão usa padrão por curso
+      let pe = pePorSKU[sku] || 0
+      if (pe === 0) {
+        const nomeCurso = String(row['NOME DO CURSO'] || row.NOME_CURSO || '')
+        pe = pePorCurso[nomeCurso] || 0
+      }
+      
+      const finDoc = capInfo.FIN_DOC
+      
+      return {
+        SKU: sku,
+        UF: String(row.UF || ''),
+        MUNICIPIO: String(row.MUNICIPIO || ''),
+        NOME_CAMPUS: String(row['NOME DO CAMPUS'] || row.NOME_CAMPUS || capInfo.NOME_CAMPUS || ''),
+        NOME_CURSO: String(row['NOME DO CURSO'] || row.NOME_CURSO || capInfo.NOME_CURSO || ''),
+        TURNO: String(row.TURNO || capInfo.TURNO || ''),
+        MODALIDADE: String(row.MODALIDADE || ''),
+        INSCRITOS: capInfo.INSCRITOS,
+        MAT_FIN: capInfo.MAT_FIN,
+        FIN_DOC: finDoc,
+        PE: pe,
+        GAP: finDoc - pe,
+        MAT_ACAD: capInfo.MAT_ACAD,
+        STATUS_ORIGINAL: String(row.STATUS || ''),
+        STATUS_CURSO: finDoc >= pe ? 'CONFIRMADO' : 'STANDBY',
+        AREA_CONHECIMENTO: String(row['AREA DE \r\nCONHECIMENTO'] || row.AREA_CONHECIMENTO || ''),
+        REGIONAL: String(row['SIGLA REGIONAL'] || row.REGIONAL || ''),
+      }
+    })
+
+    // Extrair filtros
+    const crivoFilters = {
+      ufs: [...new Set(processedCrivoData.map((d: any) => d.UF).filter(Boolean))].sort(),
+      campus: [...new Set(processedCrivoData.map((d: any) => d.NOME_CAMPUS).filter(Boolean))].sort(),
+      cursos: [...new Set(processedCrivoData.map((d: any) => d.NOME_CURSO).filter(Boolean))].sort(),
+      turnos: [...new Set(processedCrivoData.map((d: any) => d.TURNO).filter(Boolean))].sort(),
+    }
+
+    // Processar dados de Meta
+    const campusMap = new Map<string, any>()
+    
+    filteredCapData.forEach((row: any) => {
+      const campus = String(row.NOM_CAMPUS || row.NOME_CAMPUS || '')
+      const regional = String(row.NOM_REGIONAL || row.REGIONAL || '')
+      
+      if (!campus) return
+
+      if (!campusMap.has(campus)) {
+        campusMap.set(campus, {
+          campus, regional,
+          inscritosMeta: 0, matFinMeta: 0, finDocMeta: 0, matAcadMeta: 0,
+          inscritosAtual: 0, matFinAtual: 0, finDocAtual: 0, matAcadAtual: 0,
+        })
+      }
+
+      const entry = campusMap.get(campus)!
+      entry.inscritosMeta += parseNum(row.INSCRITOS_META_FECH || row.INSCRITOS_META)
+      entry.matFinMeta += parseNum(row.MAT_FIN_META_FECH || row.MAT_FIN_META)
+      entry.finDocMeta += parseNum(row.FIN_DOC_META_FECH || row.FIN_DOC_META)
+      entry.matAcadMeta += parseNum(row.MAT_ACAD_META_FECH || row.MAT_ACAD_META)
+      entry.inscritosAtual += parseNum(row.INSCRITOS_ATUAL || row.INSCRITOS)
+      entry.matFinAtual += parseNum(row.MAT_FIN_ATUAL || row.MAT_FIN)
+      entry.finDocAtual += parseNum(row.FIN_DOC_ATUAL || row.FIN_DOC)
+      entry.matAcadAtual += parseNum(row.MAT_ACAD_ATUAL || row.MAT_ACAD)
+    })
+
+    const processedMetaData = Array.from(campusMap.values())
+
+    const metaFilters = {
+      campuses: [...new Set(processedMetaData.map(d => d.campus).filter(Boolean))].sort(),
+      cursos: [...new Set(filteredCapData.map((d: any) => d.NOM_CURSO || d.NOME_CURSO).filter(Boolean))].sort(),
+      turnos: [...new Set(filteredCapData.map((d: any) => d.NOM_TURNO || d.TURNO).filter(Boolean))].sort(),
+      regionais: [...new Set(processedMetaData.map(d => d.regional).filter(Boolean))].sort(),
+    }
+
+    const metaTotais = {
+      inscritosMeta: processedMetaData.reduce((s, d) => s + d.inscritosMeta, 0),
+      matFinMeta: processedMetaData.reduce((s, d) => s + d.matFinMeta, 0),
+      finDocMeta: processedMetaData.reduce((s, d) => s + d.finDocMeta, 0),
+      matAcadMeta: processedMetaData.reduce((s, d) => s + d.matAcadMeta, 0),
+      inscritosAtual: processedMetaData.reduce((s, d) => s + d.inscritosAtual, 0),
+      matFinAtual: processedMetaData.reduce((s, d) => s + d.matFinAtual, 0),
+      finDocAtual: processedMetaData.reduce((s, d) => s + d.finDocAtual, 0),
+      matAcadAtual: processedMetaData.reduce((s, d) => s + d.matAcadAtual, 0),
+      totalCampus: processedMetaData.length,
+      campusComMeta: processedMetaData.filter(d => d.matFinMeta > 0).length,
+      campusAtingindoMatFin: processedMetaData.filter(d => d.matFinMeta > 0 && d.matFinAtual >= d.matFinMeta).length,
+    }
+
+    return {
+      crivoData: { data: processedCrivoData, filters: crivoFilters },
+      metaData: { data: processedMetaData, filters: metaFilters, totais: metaTotais },
+      files: processedFiles
+    }
+  }
+
   // ====== HANDLE UPLOAD ======
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -258,37 +594,36 @@ export default function Home() {
     setUploadResult(null)
 
     try {
-      const formData = new FormData()
-      // Enviar todos os arquivos selecionados
-      for (let i = 0; i < files.length; i++) {
-        formData.append('files', files[i])
-      }
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        setUploadResult({
-          success: true,
-          message: result.message,
-          stats: result.stats
-        })
-        fetchData()
-        if (activeTab === 'meta') fetchMetaData()
-      } else {
-        setUploadResult({
-          success: false,
-          message: result.error || 'Erro ao processar arquivo'
-        })
-      }
-    } catch (error) {
       setUploadResult({
         success: false,
-        message: 'Erro de conexão ao enviar arquivo'
+        message: 'Processando arquivo... Isso pode levar alguns segundos.'
+      })
+
+      const processed = await processExcelLocally(files)
+      
+      // Salvar no localStorage
+      localStorage.setItem('crivo-data', JSON.stringify(processed.crivoData))
+      localStorage.setItem('cap-meta-data', JSON.stringify(processed.metaData))
+      localStorage.setItem('data-timestamp', new Date().toISOString())
+      
+      setUploadResult({
+        success: true,
+        message: 'Dados processados e salvos localmente!',
+        stats: {
+          arquivos: processed.files,
+          crivoRegistros: processed.crivoData.data.length,
+          metaRegistros: processed.metaData.data.length
+        }
+      })
+      
+      // Recarregar para aplicar dados
+      setTimeout(() => window.location.reload(), 1000)
+
+    } catch (error: any) {
+      console.error('Erro no upload:', error)
+      setUploadResult({
+        success: false,
+        message: error.message || 'Erro ao processar arquivo'
       })
     } finally {
       setUploading(false)
