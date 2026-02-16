@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Cell, LabelList
+  Cell, LabelList, PieChart, Pie, Legend
 } from 'recharts'
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
@@ -511,6 +511,81 @@ export default function Home() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Cards de Status de Cursos */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card className="bg-gradient-to-br from-slate-600 to-slate-700 text-white shadow-lg">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-slate-200 text-sm">Cursos Ofertados</p>
+                      <p className="text-2xl font-bold">{formatNumber(data?.totais?.totalRegistros || 0)}</p>
+                    </div>
+                    <GraduationCap className="w-10 h-10 text-slate-300" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-green-600 to-green-700 text-white shadow-lg">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-green-200 text-sm">Confirmados</p>
+                      <p className="text-2xl font-bold">{formatNumber(data?.data?.filter(d => d.FIN_DOC >= d.PE).length || 0)}</p>
+                    </div>
+                    <CheckCircle className="w-10 h-10 text-green-300" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-yellow-500 to-orange-500 text-white shadow-lg">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-yellow-100 text-sm">Faltam Confirmar</p>
+                      <p className="text-2xl font-bold">{formatNumber(data?.data?.filter(d => d.FIN_DOC < d.PE).length || 0)}</p>
+                    </div>
+                    <Target className="w-10 h-10 text-yellow-200" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Gráfico de Pizza - Taxa de Confirmação */}
+            <Card className="shadow-md">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg text-center">Taxa de Confirmação de Cursos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-center">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Confirmados', value: data?.data?.filter(d => d.FIN_DOC >= d.PE).length || 0, fill: '#16a34a' },
+                          { name: 'Faltam Confirmar', value: data?.data?.filter(d => d.FIN_DOC < d.PE).length || 0, fill: '#f59e0b' }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={3}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                      >
+                      </Pie>
+                      <Tooltip formatter={(value: number) => formatNumber(value)} />
+                      <Legend 
+                        verticalAlign="bottom" 
+                        height={36}
+                        formatter={(value) => <span className="text-sm text-slate-700">{value}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Gráficos em Colunas */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
