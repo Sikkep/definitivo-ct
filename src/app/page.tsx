@@ -401,13 +401,18 @@ export default function Home() {
       
       if (isCSV) {
         // Ler CSV como texto
-        const text = await file.text()
+        const arrayBuffer = await file.arrayBuffer()
+        // Tentar detectar encoding e converter
+        const decoder = new TextDecoder('iso-8859-1')
+        const text = decoder.decode(arrayBuffer)
         
         // Detectar separador (ponto-e-vírgula ou vírgula)
         const firstLine = text.split('\n')[0]
         const separator = firstLine.includes(';') ? ';' : ','
         
-        // Função para parsear linha CSV corretamente (lidando com aspas)
+        console.log('Separador detectado:', separator)
+        
+        // Função para parsear linha CSV corretamente (lidando com aspas e campos vazios)
         const parseCSVLine = (line: string, sep: string): string[] => {
           const result: string[] = []
           let current = ''
@@ -433,7 +438,8 @@ export default function Home() {
         const lines = text.split('\n')
         const headers = parseCSVLine(lines[0], separator).map(h => h.replace(/"/g, '').trim())
         
-        console.log('CSV Headers:', headers.slice(0, 15))
+        console.log('CSV Headers (' + headers.length + '):', headers.slice(0, 10))
+        console.log('Total linhas no arquivo:', lines.length)
         
         const data: any[] = []
         for (let j = 1; j < lines.length; j++) {
@@ -443,7 +449,8 @@ export default function Home() {
           const row: any = {}
           
           headers.forEach((header, idx) => {
-            row[header] = values[idx] || ''
+            const val = values[idx] || ''
+            row[header] = val.replace(/"/g, '').trim()
           })
           
           data.push(row)
@@ -454,12 +461,17 @@ export default function Home() {
           allCapData = [...allCapData, ...data]
           console.log(`CSV CAP processado: ${data.length} linhas`)
           if (data.length > 0) {
-            console.log('Amostra CAP linha 1:', {
-              PERIODO: data[0].PERIODO_ACADEMICO,
-              COD_CAMPUS: data[0].COD_CAMPUS,
-              INSCRITOS_ATUAL: data[0].INSCRITOS_ATUAL,
-              F_DESISTENTE: data[0].F_DESISTENTE
-            })
+            // Mostrar algumas linhas com valores
+            const comValores = data.filter(d => d.INSCRITOS_ATUAL && d.INSCRITOS_ATUAL !== '0' && d.INSCRITOS_ATUAL !== '0,000000')
+            console.log(`Linhas com INSCRITOS_ATUAL > 0: ${comValores.length}`)
+            if (comValores.length > 0) {
+              console.log('Amostra linha com valor:', {
+                PERIODO: comValores[0].PERIODO_ACADEMICO,
+                COD_CAMPUS: comValores[0].COD_CAMPUS,
+                INSCRITOS_ATUAL: comValores[0].INSCRITOS_ATUAL,
+                F_DESISTENTE: comValores[0].F_DESISTENTE
+              })
+            }
           }
         } else if (headers.includes('SKU') || headers.includes('P.E.') || headers.includes('PE')) {
           allCrivoData = [...allCrivoData, ...data]
