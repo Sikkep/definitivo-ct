@@ -802,6 +802,24 @@ export default function Home() {
 
       const processed = await processExcelLocally(files)
       
+      // Calcular totais para verificar
+      const totaisProcessados = processed.crivoData.data.reduce((acc: any, d: any) => ({
+        inscritos: acc.inscritos + d.INSCRITOS,
+        matFin: acc.matFin + d.MAT_FIN,
+        finDoc: acc.finDoc + d.FIN_DOC,
+        confirmados: acc.confirmados + (d.FIN_DOC >= d.PE ? 1 : 0)
+      }), { inscritos: 0, matFin: 0, finDoc: 0, confirmados: 0 })
+      
+      console.log('=== DADOS A SEREM SALVOS ===')
+      console.log('Inscritos:', totaisProcessados.inscritos)
+      console.log('Mat Fin:', totaisProcessados.matFin)
+      console.log('Fin Doc:', totaisProcessados.finDoc)
+      console.log('Confirmados:', totaisProcessados.confirmados)
+      
+      // Limpar dados antigos antes de salvar
+      localStorage.removeItem('crivo-data')
+      localStorage.removeItem('cap-meta-data')
+      
       // Salvar no localStorage
       localStorage.setItem('crivo-data', JSON.stringify(processed.crivoData))
       localStorage.setItem('cap-meta-data', JSON.stringify(processed.metaData))
@@ -809,16 +827,17 @@ export default function Home() {
       
       setUploadResult({
         success: true,
-        message: 'Dados processados e salvos localmente!',
+        message: `Dados processados! Inscritos: ${totaisProcessados.inscritos}, Mat Fin: ${totaisProcessados.matFin}, Fin Doc: ${totaisProcessados.finDoc}, Confirmados: ${totaisProcessados.confirmados}`,
         stats: {
           arquivos: processed.files,
           crivoRegistros: processed.crivoData.data.length,
-          metaRegistros: processed.metaData.data.length
+          metaRegistros: processed.metaData.data.length,
+          totais: totaisProcessados
         }
       })
       
       // Recarregar para aplicar dados
-      setTimeout(() => window.location.reload(), 1000)
+      setTimeout(() => window.location.reload(), 2000)
 
     } catch (error: any) {
       console.error('Erro no upload:', error)
@@ -829,6 +848,14 @@ export default function Home() {
     } finally {
       setUploading(false)
     }
+  }
+  
+  // Limpar dados do localStorage
+  const handleClearData = () => {
+    localStorage.removeItem('crivo-data')
+    localStorage.removeItem('cap-meta-data')
+    localStorage.removeItem('data-timestamp')
+    window.location.reload()
   }
 
   // Filter campus data by search
@@ -1832,6 +1859,15 @@ export default function Home() {
                 <p>• Aceita arquivos grandes (sem limite de tamanho)</p>
                 <p>• Selecione múltiplos arquivos se necessário</p>
               </div>
+              
+              <Button 
+                variant="outline" 
+                className="w-full text-red-600 border-red-300 hover:bg-red-50"
+                onClick={handleClearData}
+              >
+                <AlertTriangle className="w-4 h-4 mr-2" />
+                Limpar Dados e Recarregar
+              </Button>
             </div>
           )}
         </DialogContent>
