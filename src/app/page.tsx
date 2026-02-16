@@ -392,91 +392,136 @@ export default function Home() {
     let allCapData: any[] = []
     const processedFiles: string[] = []
 
+    // Helper para converter números com vírgula (formato brasileiro)
+    const parseNum = (val: any): number => {
+      if (val === undefined || val === null || val === '') return 0
+      // Remove aspas e converte vírgula para ponto
+      const str = String(val).replace(/"/g, '').replace(',', '.').trim()
+      const num = parseFloat(str)
+      return isNaN(num) ? 0 : num
+    }
+
+    // Helper para extrair parte inteira de um código
+    const getIntPart = (val: any): string => {
+      if (val === undefined || val === null || val === '') return ''
+      const str = String(val).replace(/"/g, '').trim()
+      // Pega a parte antes da vírgula ou ponto
+      const parts = str.split(/[,.]/)
+      return parts[0] || ''
+    }
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       processedFiles.push(file.name)
       
-      // Verificar se é CSV
       const isCSV = file.name.toLowerCase().endsWith('.csv')
       
       if (isCSV) {
         // Ler CSV como texto
         const arrayBuffer = await file.arrayBuffer()
-        // Tentar detectar encoding e converter
         const decoder = new TextDecoder('iso-8859-1')
         const text = decoder.decode(arrayBuffer)
         
-        // Detectar separador (ponto-e-vírgula ou vírgula)
-        const firstLine = text.split('\n')[0]
-        const separator = firstLine.includes(';') ? ';' : ','
+        // Separador é ponto-e-vírgula
+        const lines = text.split('\n').filter(l => l.trim())
         
-        console.log('Separador detectado:', separator)
+        // Parsear cabeçalho
+        const headerLine = lines[0]
+        const headers = headerLine.split(';').map(h => h.replace(/"/g, '').trim())
         
-        // Função para parsear linha CSV corretamente (lidando com aspas e campos vazios)
-        const parseCSVLine = (line: string, sep: string): string[] => {
-          const result: string[] = []
+        console.log('=== CSV CAP DEBUG ===')
+        console.log('Headers:', headers)
+        
+        // Encontrar índices das colunas importantes
+        const idxPeriodo = headers.findIndex(h => h === 'PERIODO_ACADEMICO')
+        const idxCampus = headers.findIndex(h => h === 'COD_CAMPUS')
+        const idxCurso = headers.findIndex(h => h === 'COD_CURSO')
+        const idxTurno = headers.findIndex(h => h === 'COD_TURNO')
+        const idxInscritos = headers.findIndex(h => h === 'INSCRITOS_ATUAL')
+        const idxMatFin = headers.findIndex(h => h === 'MAT_FIN_ATUAL')
+        const idxFinDoc = headers.findIndex(h => h === 'FIN_DOC_ATUAL')
+        const idxMatAcad = headers.findIndex(h => h === 'MAT_ACAD_ATUAL')
+        const idxDesistente = headers.findIndex(h => h === 'F_DESISTENTE')
+        const idxNomCampus = headers.findIndex(h => h === 'NOM_CAMPUS')
+        const idxNomCurso = headers.findIndex(h => h === 'NOM_CURSO')
+        const idxNomTurno = headers.findIndex(h => h === 'NOM_TURNO')
+        
+        console.log('Índices:', { idxPeriodo, idxCampus, idxCurso, idxTurno, idxInscritos, idxMatFin, idxFinDoc, idxDesistente })
+        
+        // Processar linhas de dados
+        let count2026 = 0
+        let countAtivos = 0
+        let countComDados = 0
+        
+        for (let j = 1; j < lines.length; j++) {
+          const line = lines[j]
+          if (!line.trim()) continue
+          
+          // Parsear linha respeitando aspas
+          const values: string[] = []
           let current = ''
           let inQuotes = false
           
           for (let k = 0; k < line.length; k++) {
             const char = line[k]
-            
             if (char === '"') {
               inQuotes = !inQuotes
-            } else if (char === sep && !inQuotes) {
-              result.push(current.trim())
+            } else if (char === ';' && !inQuotes) {
+              values.push(current.trim())
               current = ''
             } else {
               current += char
             }
           }
-          result.push(current.trim())
-          return result
-        }
-        
-        // Parsear CSV
-        const lines = text.split('\n')
-        const headers = parseCSVLine(lines[0], separator).map(h => h.replace(/"/g, '').trim())
-        
-        console.log('CSV Headers (' + headers.length + '):', headers.slice(0, 10))
-        console.log('Total linhas no arquivo:', lines.length)
-        
-        const data: any[] = []
-        for (let j = 1; j < lines.length; j++) {
-          if (!lines[j].trim()) continue
+          values.push(current.trim())
           
-          const values = parseCSVLine(lines[j], separator)
-          const row: any = {}
+          // Extrair valores
+          const periodo = values[idxPeriodo]?.replace(/"/g, '').trim() || ''
+          const flagDesistente = values[idxDesistente]?.replace(/"/g, '').trim() || '0'
           
-          headers.forEach((header, idx) => {
-            const val = values[idx] || ''
-            row[header] = val.replace(/"/g, '').trim()
-          })
+          // Filtrar: período 2026.1 e não desistente
+          if (!periodo.includes('2026.1')) continue
+          count2026++
           
-          data.push(row)
-        }
-        
-        // Verificar se é CAP ou CRIVO baseado nas colunas
-        if (headers.includes('PERIODO_ACADEMICO') || headers.includes('COD_CAMPUS')) {
-          allCapData = [...allCapData, ...data]
-          console.log(`CSV CAP processado: ${data.length} linhas`)
-          if (data.length > 0) {
-            // Mostrar algumas linhas com valores
-            const comValores = data.filter(d => d.INSCRITOS_ATUAL && d.INSCRITOS_ATUAL !== '0' && d.INSCRITOS_ATUAL !== '0,000000')
-            console.log(`Linhas com INSCRITOS_ATUAL > 0: ${comValores.length}`)
-            if (comValores.length > 0) {
-              console.log('Amostra linha com valor:', {
-                PERIODO: comValores[0].PERIODO_ACADEMICO,
-                COD_CAMPUS: comValores[0].COD_CAMPUS,
-                INSCRITOS_ATUAL: comValores[0].INSCRITOS_ATUAL,
-                F_DESISTENTE: comValores[0].F_DESISTENTE
-              })
-            }
+          const isAtivo = flagDesistente === '0' || flagDesistente === '0,000000' || flagDesistente === ''
+          if (!isAtivo) continue
+          countAtivos++
+          
+          // Extrair códigos para formar SKU
+          const codCampus = getIntPart(values[idxCampus])
+          const codCurso = getIntPart(values[idxCurso])
+          const codTurno = getIntPart(values[idxTurno])
+          const sku = `${codCampus}${codCurso}${codTurno}`
+          
+          if (!sku || sku.length < 3) continue
+          
+          // Extrair valores numéricos
+          const inscritos = parseNum(values[idxInscritos])
+          const matFin = parseNum(values[idxMatFin])
+          const finDoc = parseNum(values[idxFinDoc])
+          const matAcad = parseNum(values[idxMatAcad])
+          
+          if (inscritos > 0 || matFin > 0 || finDoc > 0) {
+            countComDados++
           }
-        } else if (headers.includes('SKU') || headers.includes('P.E.') || headers.includes('PE')) {
-          allCrivoData = [...allCrivoData, ...data]
-          console.log(`CSV CRIVO processado: ${data.length} linhas`)
+          
+          allCapData.push({
+            SKU: sku,
+            INSCRITOS_ATUAL: inscritos,
+            MAT_FIN_ATUAL: matFin,
+            FIN_DOC_ATUAL: finDoc,
+            MAT_ACAD_ATUAL: matAcad,
+            NOM_CAMPUS: values[idxNomCampus]?.replace(/"/g, '').trim() || '',
+            NOM_CURSO: values[idxNomCurso]?.replace(/"/g, '').trim() || '',
+            NOM_TURNO: values[idxNomTurno]?.replace(/"/g, '').trim() || '',
+          })
         }
+        
+        console.log(`CAP 2026.1: ${count2026} linhas`)
+        console.log(`CAP Ativos (F_DESISTENTE=0): ${countAtivos} linhas`)
+        console.log(`CAP Com dados: ${countComDados} linhas`)
+        console.log(`Total CAP processado: ${allCapData.length} linhas`)
+        
       } else {
         // Ler arquivo Excel
         const arrayBuffer = await file.arrayBuffer()
@@ -494,107 +539,110 @@ export default function Home() {
           console.log(`Excel CRIVO processado: ${data.length} linhas`)
         }
 
-        // Processar aba CAP
+        // Processar aba CAP (se existir)
         const capSheetName = workbook.SheetNames.find(name => 
           name.toUpperCase().includes('CAP')
         )
         
         if (capSheetName) {
           const sheet = workbook.Sheets[capSheetName]
-          const data = XLSX.utils.sheet_to_json(sheet)
-          allCapData = [...allCapData, ...data]
-          console.log(`Excel CAP processado: ${data.length} linhas`)
+          const data = XLSX.utils.sheet_to_json(sheet) as any[]
+          
+          // Processar dados do CAP do Excel
+          data.forEach(row => {
+            const periodo = String(row.PERIODO_ACADEMICO || '')
+            if (!periodo.includes('2026.1')) return
+            
+            const flagDesistente = String(row.F_DESISTENTE || '0')
+            const isAtivo = flagDesistente === '0' || flagDesistente === '0,000000' || flagDesistente === ''
+            if (!isAtivo) return
+            
+            const codCampus = getIntPart(row.COD_CAMPUS)
+            const codCurso = getIntPart(row.COD_CURSO)
+            const codTurno = getIntPart(row.COD_TURNO)
+            const sku = `${codCampus}${codCurso}${codTurno}`
+            
+            if (!sku || sku.length < 3) return
+            
+            allCapData.push({
+              SKU: sku,
+              INSCRITOS_ATUAL: parseNum(row.INSCRITOS_ATUAL),
+              MAT_FIN_ATUAL: parseNum(row.MAT_FIN_ATUAL),
+              FIN_DOC_ATUAL: parseNum(row.FIN_DOC_ATUAL),
+              MAT_ACAD_ATUAL: parseNum(row.MAT_ACAD_ATUAL),
+              NOM_CAMPUS: row.NOM_CAMPUS || '',
+              NOM_CURSO: row.NOM_CURSO || '',
+              NOM_TURNO: row.NOM_TURNO || '',
+            })
+          })
+          console.log(`Excel CAP processado: ${allCapData.length} linhas válidas`)
         }
       }
     }
 
+    console.log('=== RESUMO ===')
     console.log('Total CRIVO:', allCrivoData.length)
     console.log('Total CAP:', allCapData.length)
-    
-    // Mostrar amostra dos dados
-    if (allCapData.length > 0) {
-      console.log('Amostra CAP:', allCapData[0])
-    }
-
-    // Helper para converter números com vírgula
-    const parseNum = (val: any) => {
-      if (val === undefined || val === null || val === '') return 0
-      const str = String(val).replace(',', '.').replace('"', '').trim()
-      return Number(str) || 0
-    }
 
     // Criar mapa de PE por curso do CRIVO
-    const pePorCurso: Record<string, number> = {}
+    const pePorCurso: Record<string, number> = {
+      // Defaults conhecidos
+      'ADMINISTRAÇÃO': 10,
+      'ENFERMAGEM': 12,
+      'GESTÃO DE RECURSOS HUMANOS': 10,
+      'GESTÃO FINANCEIRA': 10,
+      'LOGÍSTICA': 10,
+      'MARKETING': 10,
+      'SEGURANÇA DO TRABALHO': 10,
+      'ANÁLISE E DESENVOLVIMENTO DE SISTEMAS': 10,
+      'REDES DE COMPUTADORES': 10,
+      'AUTOMAÇÃO INDUSTRIAL': 10,
+      'MEIO AMBIENTE': 10,
+      'GESTÃO DA PRODUÇÃO INDUSTRIAL': 10,
+      'GESTÃO DE VAREJO': 10,
+      'GESTÃO COMERCIAL': 10,
+      'GESTÃO DE QUALIDADE': 10,
+      'ESTÉTICA': 10,
+      'ESTÉTICA E COSMÉTICA': 10,
+      'FARMÁCIA': 10,
+      'RADIOLOGIA': 10,
+      'GESTÃO HOSPITALAR': 10,
+      'EVENTOS': 10,
+      'GASTRONOMIA': 10,
+      'PROCESSOS GERENCIAIS': 10,
+    }
+    
+    // Atualizar com valores do CRIVO
     allCrivoData.forEach((row: any) => {
       const curso = String(row['NOME DO CURSO'] || row.NOME_CURSO || '')
       const peRaw = row['P.E.'] || row.PE || row['P.E'] || row['pe'] || 0
       const pe = parseNum(peRaw)
-      if (curso && pe > 0 && !pePorCurso[curso]) {
+      if (curso && pe > 0) {
         pePorCurso[curso] = pe
       }
     })
-    console.log('PE por curso:', pePorCurso)
+    console.log('PE por curso carregado:', Object.keys(pePorCurso).length, 'cursos')
 
-    // Criar mapa de PE por SKU do CRIVO
-    const pePorSKU: Record<string, number> = {}
-    allCrivoData.forEach((row: any) => {
-      const sku = String(row.SKU || '')
-      const peRaw = row['P.E.'] || row.PE || row['P.E'] || row['pe'] || 0
-      const pe = parseNum(peRaw)
-      if (sku && pe > 0) {
-        pePorSKU[sku] = pe
-      }
-    })
-    console.log('SKUs com PE definido:', Object.keys(pePorSKU).length)
-    if (allCrivoData.length > 0) {
-      console.log('Amostra CRIVO:', allCrivoData[0])
-    }
-
-    // Filtrar CAP: apenas ativos e período 2026.1
-    const filteredCapData = allCapData.filter((row: any) => {
-      const flagDesistente = String(row.F_DESISTENTE || '0').replace('"', '').trim()
-      const periodo = String(row.PERIODO_ACADEMICO || '2026.1').replace('"', '').trim()
-      
-      // Debug: mostrar valores
-      const isAtivo = flagDesistente === '0' || flagDesistente === '' || flagDesistente === '0,000000' || flagDesistente === '0.000000'
-      const isPeriodoCorreto = periodo.includes('2026.1') || periodo === '"2026.1"'
-      
-      return isAtivo && isPeriodoCorreto
-    })
-    
-    console.log('CAP filtrado:', filteredCapData.length, 'de', allCapData.length)
-    
-    // Agrupar dados do CAP por SKU
+    // Agrupar dados do CAP por SKU (somando valores)
     const capDataMap = new Map<string, any>()
     
-    filteredCapData.forEach((row: any) => {
-      // Remover aspas e pegar parte inteira do código
-      const codCampus = String(row.COD_CAMPUS || '').replace(/"/g, '').split(/[,.]/)[0].trim()
-      const codCurso = String(row.COD_CURSO || '').replace(/"/g, '').split(/[,.]/)[0].trim()
-      const codTurno = String(row.COD_TURNO || '').replace(/"/g, '').split(/[,.]/)[0].trim()
-      const sku = `${codCampus}${codCurso}${codTurno}`
-      
-      if (!sku || sku.length < 3) return
+    allCapData.forEach((row: any) => {
+      const sku = row.SKU
       
       if (!capDataMap.has(sku)) {
         capDataMap.set(sku, {
           INSCRITOS: 0, MAT_FIN: 0, FIN_DOC: 0, MAT_ACAD: 0,
-          NOME_CAMPUS: row.NOM_CAMPUS || row['NOM_CAMPUS'] || '',
-          NOME_CURSO: row.NOM_CURSO || row['NOM_CURSO'] || '',
-          TURNO: row.NOM_TURNO || row['NOM_TURNO'] || '',
+          NOM_CAMPUS: row.NOM_CAMPUS || '',
+          NOM_CURSO: row.NOM_CURSO || '',
+          NOM_TURNO: row.NOM_TURNO || '',
         })
       }
       
       const entry = capDataMap.get(sku)!
-      const inscritos = parseNum(row.INSCRITOS_ATUAL)
-      const matFin = parseNum(row.MAT_FIN_ATUAL)
-      const finDoc = parseNum(row.FIN_DOC_ATUAL)
-      const matAcad = parseNum(row.MAT_ACAD_ATUAL)
-      
-      entry.INSCRITOS += inscritos
-      entry.MAT_FIN += matFin
-      entry.FIN_DOC += finDoc
-      entry.MAT_ACAD += matAcad
+      entry.INSCRITOS += row.INSCRITOS_ATUAL || 0
+      entry.MAT_FIN += row.MAT_FIN_ATUAL || 0
+      entry.FIN_DOC += row.FIN_DOC_ATUAL || 0
+      entry.MAT_ACAD += row.MAT_ACAD_ATUAL || 0
     })
     
     // Log totais CAP
@@ -605,19 +653,29 @@ export default function Home() {
       totaisCap.finDoc += v.FIN_DOC
       totaisCap.matAcad += v.MAT_ACAD
     })
-    console.log('Totais CAP agrupados:', totaisCap)
-    console.log('SKUs únicos no CAP:', capDataMap.size)
+    console.log('=== TOTAIS CAP AGRUPADOS ===')
+    console.log('Inscritos:', totaisCap.inscritos)
+    console.log('Mat Fin:', totaisCap.matFin)
+    console.log('Fin Doc:', totaisCap.finDoc)
+    console.log('Mat Acad:', totaisCap.matAcad)
+    console.log('SKUs únicos:', capDataMap.size)
+    
+    // Mostrar alguns SKUs com dados
+    const skusComDados = Array.from(capDataMap.entries())
+      .filter(([k, v]) => v.FIN_DOC > 0)
+      .slice(0, 5)
+    console.log('Exemplos SKUs com FIN_DOC > 0:', skusComDados)
 
     // Processar dados do CRIVO com dados do CAP
     const processedCrivoData = allCrivoData.map((row: any) => {
       const sku = String(row.SKU || '')
       const capInfo = capDataMap.get(sku) || { INSCRITOS: 0, MAT_FIN: 0, FIN_DOC: 0, MAT_ACAD: 0 }
       
-      // PE: primeiro do CRIVO, senão usa padrão por curso
-      let pe = pePorSKU[sku] || 0
+      // PE: do CRIVO ou do mapeamento por curso
+      let pe = parseNum(row['P.E.'] || row.PE || row['P.E'] || row['pe'])
       if (pe === 0) {
         const nomeCurso = String(row['NOME DO CURSO'] || row.NOME_CURSO || '')
-        pe = pePorCurso[nomeCurso] || 0
+        pe = pePorCurso[nomeCurso] || 10 // default 10
       }
       
       const finDoc = capInfo.FIN_DOC
@@ -626,9 +684,9 @@ export default function Home() {
         SKU: sku,
         UF: String(row.UF || ''),
         MUNICIPIO: String(row.MUNICIPIO || ''),
-        NOME_CAMPUS: String(row['NOME DO CAMPUS'] || row.NOME_CAMPUS || capInfo.NOME_CAMPUS || ''),
-        NOME_CURSO: String(row['NOME DO CURSO'] || row.NOME_CURSO || capInfo.NOME_CURSO || ''),
-        TURNO: String(row.TURNO || capInfo.TURNO || ''),
+        NOME_CAMPUS: String(row['NOME DO CAMPUS'] || row.NOME_CAMPUS || capInfo.NOM_CAMPUS || ''),
+        NOME_CURSO: String(row['NOME DO CURSO'] || row.NOME_CURSO || capInfo.NOM_CURSO || ''),
+        TURNO: String(row.TURNO || capInfo.NOM_TURNO || ''),
         MODALIDADE: String(row.MODALIDADE || ''),
         INSCRITOS: capInfo.INSCRITOS,
         MAT_FIN: capInfo.MAT_FIN,
@@ -643,6 +701,11 @@ export default function Home() {
       }
     })
 
+    // Log de matching
+    const matchedSkus = processedCrivoData.filter((d: any) => d.INSCRITOS > 0 || d.MAT_FIN > 0).length
+    console.log('=== MATCHING ===')
+    console.log(`CRIVO SKUs com dados CAP: ${matchedSkus} de ${processedCrivoData.length}`)
+
     // Extrair filtros
     const crivoFilters = {
       ufs: [...new Set(processedCrivoData.map((d: any) => d.UF).filter(Boolean))].sort(),
@@ -651,40 +714,35 @@ export default function Home() {
       turnos: [...new Set(processedCrivoData.map((d: any) => d.TURNO).filter(Boolean))].sort(),
     }
 
-    // Processar dados de Meta
+    // Processar dados de Meta (agregar por campus)
     const campusMap = new Map<string, any>()
     
-    filteredCapData.forEach((row: any) => {
-      const campus = String(row.NOM_CAMPUS || row.NOME_CAMPUS || '')
-      const regional = String(row.NOM_REGIONAL || row.REGIONAL || '')
-      
+    allCapData.forEach((row: any) => {
+      const campus = row.NOM_CAMPUS || ''
       if (!campus) return
 
       if (!campusMap.has(campus)) {
         campusMap.set(campus, {
-          campus, regional,
+          campus,
+          regional: '',
           inscritosMeta: 0, matFinMeta: 0, finDocMeta: 0, matAcadMeta: 0,
           inscritosAtual: 0, matFinAtual: 0, finDocAtual: 0, matAcadAtual: 0,
         })
       }
 
       const entry = campusMap.get(campus)!
-      entry.inscritosMeta += parseNum(row.INSCRITOS_META_FECH || row.INSCRITOS_META)
-      entry.matFinMeta += parseNum(row.MAT_FIN_META_FECH || row.MAT_FIN_META)
-      entry.finDocMeta += parseNum(row.FIN_DOC_META_FECH || row.FIN_DOC_META)
-      entry.matAcadMeta += parseNum(row.MAT_ACAD_META_FECH || row.MAT_ACAD_META)
-      entry.inscritosAtual += parseNum(row.INSCRITOS_ATUAL || row.INSCRITOS)
-      entry.matFinAtual += parseNum(row.MAT_FIN_ATUAL || row.MAT_FIN)
-      entry.finDocAtual += parseNum(row.FIN_DOC_ATUAL || row.FIN_DOC)
-      entry.matAcadAtual += parseNum(row.MAT_ACAD_ATUAL || row.MAT_ACAD)
+      entry.inscritosAtual += row.INSCRITOS_ATUAL || 0
+      entry.matFinAtual += row.MAT_FIN_ATUAL || 0
+      entry.finDocAtual += row.FIN_DOC_ATUAL || 0
+      entry.matAcadAtual += row.MAT_ACAD_ATUAL || 0
     })
 
     const processedMetaData = Array.from(campusMap.values())
 
     const metaFilters = {
       campuses: [...new Set(processedMetaData.map(d => d.campus).filter(Boolean))].sort(),
-      cursos: [...new Set(filteredCapData.map((d: any) => d.NOM_CURSO || d.NOME_CURSO).filter(Boolean))].sort(),
-      turnos: [...new Set(filteredCapData.map((d: any) => d.NOM_TURNO || d.TURNO).filter(Boolean))].sort(),
+      cursos: [...new Set(allCapData.map((d: any) => d.NOM_CURSO).filter(Boolean))].sort(),
+      turnos: [...new Set(allCapData.map((d: any) => d.NOM_TURNO).filter(Boolean))].sort(),
       regionais: [...new Set(processedMetaData.map(d => d.regional).filter(Boolean))].sort(),
     }
 
@@ -709,12 +767,15 @@ export default function Home() {
       finDoc: acc.finDoc + d.FIN_DOC,
       matAcad: acc.matAcad + d.MAT_ACAD,
     }), { inscritos: 0, matFin: 0, finDoc: 0, matAcad: 0 })
-    console.log('=== TOTAIS FINAIS ===')
+    
+    const confirmados = processedCrivoData.filter((d: any) => d.FIN_DOC >= d.PE).length
+    
+    console.log('=== TOTAIS FINAIS CRIVO ===')
     console.log('INSCRITOS:', totaisFinais.inscritos)
     console.log('MAT_FIN:', totaisFinais.matFin)
     console.log('FIN_DOC:', totaisFinais.finDoc)
     console.log('MAT_ACAD:', totaisFinais.matAcad)
-    console.log('Confirmados:', processedCrivoData.filter((d: any) => d.FIN_DOC >= d.PE).length)
+    console.log('CONFIRMADOS:', confirmados)
 
     return {
       crivoData: { data: processedCrivoData, filters: crivoFilters },
