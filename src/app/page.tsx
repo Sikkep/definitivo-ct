@@ -487,13 +487,13 @@ export default function Home() {
           if (!isAtivo) continue
           countAtivos++
           
-          // Extrair códigos para formar SKU
+          // Extrair códigos para formar SKU (como número inteiro para matching com CRIVO)
           const codCampus = getIntPart(values[idxCampus])
           const codCurso = getIntPart(values[idxCurso])
           const codTurno = getIntPart(values[idxTurno])
-          const sku = `${codCampus}${codCurso}${codTurno}`
+          const sku = parseInt(`${codCampus}${codCurso}${codTurno}`, 10)
           
-          if (!sku || sku.length < 3) continue
+          if (!sku || isNaN(sku)) continue
           
           // Extrair valores numéricos
           const inscritos = parseNum(values[idxInscritos])
@@ -506,7 +506,7 @@ export default function Home() {
           }
           
           allCapData.push({
-            SKU: sku,
+            SKU: sku, // número inteiro
             INSCRITOS_ATUAL: inscritos,
             MAT_FIN_ATUAL: matFin,
             FIN_DOC_ATUAL: finDoc,
@@ -560,12 +560,12 @@ export default function Home() {
             const codCampus = getIntPart(row.COD_CAMPUS)
             const codCurso = getIntPart(row.COD_CURSO)
             const codTurno = getIntPart(row.COD_TURNO)
-            const sku = `${codCampus}${codCurso}${codTurno}`
+            const sku = parseInt(`${codCampus}${codCurso}${codTurno}`, 10)
             
-            if (!sku || sku.length < 3) return
+            if (!sku || isNaN(sku)) return
             
             allCapData.push({
-              SKU: sku,
+              SKU: sku, // número inteiro
               INSCRITOS_ATUAL: parseNum(row.INSCRITOS_ATUAL),
               MAT_FIN_ATUAL: parseNum(row.MAT_FIN_ATUAL),
               FIN_DOC_ATUAL: parseNum(row.FIN_DOC_ATUAL),
@@ -624,7 +624,8 @@ export default function Home() {
     console.log('PE por curso carregado:', Object.keys(pePorCurso).length, 'cursos')
 
     // Agrupar dados do CAP por SKU (somando valores)
-    const capDataMap = new Map<string, any>()
+    // Usar número como chave para matching com CRIVO
+    const capDataMap = new Map<number, any>()
     
     allCapData.forEach((row: any) => {
       const sku = row.SKU
@@ -668,7 +669,8 @@ export default function Home() {
 
     // Processar dados do CRIVO com dados do CAP
     const processedCrivoData = allCrivoData.map((row: any) => {
-      const sku = String(row.SKU || '')
+      // SKU do CRIVO é número inteiro - converter para matching correto
+      const sku = parseInt(String(row.SKU || '0'), 10)
       const capInfo = capDataMap.get(sku) || { INSCRITOS: 0, MAT_FIN: 0, FIN_DOC: 0, MAT_ACAD: 0 }
       
       // PE: do CRIVO ou do mapeamento por curso
