@@ -584,6 +584,60 @@ export default function Home() {
     console.log('Total CRIVO:', allCrivoData.length)
     console.log('Total CAP:', allCapData.length)
 
+    // Se não houver dados do CRIVO mas houver dados do CAP, tentar usar dados existentes do localStorage
+    if (allCrivoData.length === 0 && allCapData.length > 0) {
+      const existingData = localStorage.getItem('crivo-data')
+      if (existingData) {
+        try {
+          const parsed = JSON.parse(existingData)
+          if (parsed.data && parsed.data.length > 0) {
+            allCrivoData = parsed.data.map((d: any) => ({
+              SKU: parseInt(String(d.SKU), 10), // Garantir que é número
+              'NOME DO CURSO': d.NOME_CURSO,
+              'P.E.': d.PE,
+              UF: d.UF,
+              MUNICIPIO: d.MUNICIPIO,
+              'NOME DO CAMPUS': d.NOME_CAMPUS,
+              TURNO: d.TURNO,
+              MODALIDADE: d.MODALIDADE,
+              STATUS: d.STATUS_ORIGINAL,
+              'SIGLA REGIONAL': d.REGIONAL,
+              'AREA DE \r\nCONHECIMENTO': d.AREA_CONHECIMENTO,
+            }))
+            console.log(`Usando ${allCrivoData.length} SKUs existentes do localStorage como base`)
+          }
+        } catch (e) {
+          console.log('Erro ao carregar dados existentes:', e)
+        }
+      } else {
+        // Se não há dados no localStorage, buscar da API (JSON público)
+        try {
+          const response = await fetch('/api')
+          if (response.ok) {
+            const apiData = await response.json()
+            if (apiData.data && apiData.data.length > 0) {
+              allCrivoData = apiData.data.map((d: any) => ({
+                SKU: parseInt(String(d.SKU), 10),
+                'NOME DO CURSO': d.NOME_CURSO,
+                'P.E.': d.PE,
+                UF: d.UF,
+                MUNICIPIO: d.MUNICIPIO,
+                'NOME DO CAMPUS': d.NOME_CAMPUS,
+                TURNO: d.TURNO,
+                MODALIDADE: d.MODALIDADE,
+                STATUS: d.STATUS_ORIGINAL,
+                'SIGLA REGIONAL': d.REGIONAL,
+                'AREA DE \r\nCONHECIMENTO': d.AREA_CONHECIMENTO,
+              }))
+              console.log(`Usando ${allCrivoData.length} SKUs da API como base`)
+            }
+          }
+        } catch (e) {
+          console.log('Erro ao carregar dados da API:', e)
+        }
+      }
+    }
+
     // Criar mapa de PE por curso do CRIVO
     const pePorCurso: Record<string, number> = {
       // Defaults conhecidos
