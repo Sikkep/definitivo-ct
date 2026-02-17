@@ -3,7 +3,7 @@ import { head } from "@vercel/blob";
 import localCrivoData from "../../../public/crivo-data.json";
 
 interface CrivoData {
-  SKU: string;
+  SKU: number;
   UF: string;
   MUNICIPIO: string;
   NOME_CAMPUS: string;
@@ -19,6 +19,7 @@ interface CrivoData {
   STATUS_ORIGINAL: string;
   STATUS_CURSO: string;
   AREA_CONHECIMENTO: string;
+  REGIONAL?: string;
 }
 
 interface FilterOptions {

@@ -301,27 +301,39 @@ export default function Home() {
     setMetaLoading(true)
     try {
       const localData = localStorage.getItem('cap-meta-data')
+      console.log('=== META DATA DEBUG ===')
+      console.log('localStorage cap-meta-data:', localData ? 'existe' : 'não existe')
+      
       if (localData) {
         console.log('Usando meta do localStorage')
         const parsedData = JSON.parse(localData)
+        console.log('parsedData keys:', Object.keys(parsedData))
+        console.log('parsedData.data length:', parsedData.data?.length)
+        console.log('parsedData.totais:', parsedData.totais)
         
-        let filteredData = [...(parsedData.data || [])]
+        // Usar os dados diretamente ou do campo data
+        let rawData = parsedData.data || []
+        console.log('rawData length:', rawData.length)
+        
+        let filteredData = [...rawData]
         if (metaCampusSelecionado !== 'todos') filteredData = filteredData.filter(d => d.campus === metaCampusSelecionado)
         if (metaRegionalSelecionado !== 'todos') filteredData = filteredData.filter(d => d.regional === metaRegionalSelecionado)
 
         const filteredTotais = {
-          inscritosMeta: filteredData.reduce((s: number, d: any) => s + d.inscritosMeta, 0),
-          matFinMeta: filteredData.reduce((s: number, d: any) => s + d.matFinMeta, 0),
-          finDocMeta: filteredData.reduce((s: number, d: any) => s + d.finDocMeta, 0),
-          matAcadMeta: filteredData.reduce((s: number, d: any) => s + d.matAcadMeta, 0),
-          inscritosAtual: filteredData.reduce((s: number, d: any) => s + d.inscritosAtual, 0),
-          matFinAtual: filteredData.reduce((s: number, d: any) => s + d.matFinAtual, 0),
-          finDocAtual: filteredData.reduce((s: number, d: any) => s + d.finDocAtual, 0),
-          matAcadAtual: filteredData.reduce((s: number, d: any) => s + d.matAcadAtual, 0),
+          inscritosMeta: filteredData.reduce((s: number, d: any) => s + (d.inscritosMeta || 0), 0),
+          matFinMeta: filteredData.reduce((s: number, d: any) => s + (d.matFinMeta || 0), 0),
+          finDocMeta: filteredData.reduce((s: number, d: any) => s + (d.finDocMeta || 0), 0),
+          matAcadMeta: filteredData.reduce((s: number, d: any) => s + (d.matAcadMeta || 0), 0),
+          inscritosAtual: filteredData.reduce((s: number, d: any) => s + (d.inscritosAtual || 0), 0),
+          matFinAtual: filteredData.reduce((s: number, d: any) => s + (d.matFinAtual || 0), 0),
+          finDocAtual: filteredData.reduce((s: number, d: any) => s + (d.finDocAtual || 0), 0),
+          matAcadAtual: filteredData.reduce((s: number, d: any) => s + (d.matAcadAtual || 0), 0),
           totalCampus: filteredData.length,
           campusComMeta: filteredData.filter((d: any) => d.matFinMeta > 0).length,
           campusAtingindoMatFin: filteredData.filter((d: any) => d.matFinMeta > 0 && d.matFinAtual >= d.matFinMeta).length,
         }
+        
+        console.log('filteredTotais:', filteredTotais)
 
         const comMeta = filteredData.filter((d: any) => d.matFinMeta > 0)
         
@@ -399,6 +411,7 @@ export default function Home() {
     
     let portfolioData: any[] = []
     let capData: any[] = []
+    let metaPorSku: Map<number, {inscritosMeta: number, matFinMeta: number, finDocMeta: number, matAcadMeta: number}> = new Map()
     const processedFiles: string[] = []
 
     const parseNum = (val: any): number => {
@@ -431,10 +444,16 @@ export default function Home() {
           campus: headers.indexOf('COD_CAMPUS'),
           curso: headers.indexOf('COD_CURSO'),
           turno: headers.indexOf('COD_TURNO'),
+          nomeCampus: headers.indexOf('NOM_CAMPUS'),
+          regional: headers.indexOf('NOM_REGIONAL'),
           inscritos: headers.indexOf('INSCRITOS_ATUAL'),
           matFin: headers.indexOf('MAT_FIN_ATUAL'),
           finDoc: headers.indexOf('FIN_DOC_ATUAL'),
           matAcad: headers.indexOf('MAT_ACAD_ATUAL'),
+          inscritosMeta: headers.indexOf('INSCRITOS_META'),
+          matFinMeta: headers.indexOf('MAT_FIN_META'),
+          finDocMeta: headers.indexOf('FIN_DOC_META'),
+          matAcadMeta: headers.indexOf('MAT_ACAD_META'),
           desistente: headers.indexOf('F_DESISTENTE'),
         }
         
@@ -467,15 +486,37 @@ export default function Home() {
           
           if (!sku || isNaN(sku)) continue
           
+          const nomeCampus = values[idx.nomeCampus]?.replace(/"/g, '').trim() || ''
+          const regional = values[idx.regional]?.replace(/"/g, '').trim() || ''
+          
           capData.push({
             SKU: sku,
+            NOME_CAMPUS: nomeCampus,
+            REGIONAL: regional,
             INSCRITOS: parseNum(values[idx.inscritos]),
             MAT_FIN: parseNum(values[idx.matFin]),
             FIN_DOC: parseNum(values[idx.finDoc]),
             MAT_ACAD: parseNum(values[idx.matAcad]),
           })
+          
+          // Ler metas do CSV
+          const inscritosMeta = parseNum(values[idx.inscritosMeta])
+          const matFinMeta = parseNum(values[idx.matFinMeta])
+          const finDocMeta = parseNum(values[idx.finDocMeta])
+          const matAcadMeta = parseNum(values[idx.matAcadMeta])
+          
+          if (inscritosMeta > 0 || matFinMeta > 0 || finDocMeta > 0 || matAcadMeta > 0) {
+            if (!metaPorSku.has(sku)) {
+              metaPorSku.set(sku, { inscritosMeta: 0, matFinMeta: 0, finDocMeta: 0, matAcadMeta: 0 })
+            }
+            const entry = metaPorSku.get(sku)!
+            entry.inscritosMeta += inscritosMeta
+            entry.matFinMeta += matFinMeta
+            entry.finDocMeta += finDocMeta
+            entry.matAcadMeta += matAcadMeta
+          }
         }
-        console.log(`CAP CSV: ${capData.length} linhas`)
+        console.log(`CAP CSV: ${capData.length} linhas, Metas: ${metaPorSku.size} SKUs`)
         
       } else {
         // === PROCESSAR EXCEL ===
@@ -489,7 +530,7 @@ export default function Home() {
         
         if (portfolioSheet) {
           const sheet = workbook.Sheets[portfolioSheet]
-          const data = XLSX.utils.sheet_to_json(sheet, { skiprows: 1 }) as any[]
+          const data = XLSX.utils.sheet_to_json(sheet) as any[]
           
           data.forEach(row => {
             const sku = parseInt(String(row.SKU || 0), 10)
@@ -510,7 +551,7 @@ export default function Home() {
           console.log(`Portfolio: ${portfolioData.length} SKUs`)
         }
         
-        // CAP Excel
+        // CAP Excel (aba CAP_CT)
         const capSheet = workbook.SheetNames.find(name => name.toUpperCase().includes('CAP'))
         if (capSheet) {
           const sheet = workbook.Sheets[capSheet]
@@ -521,7 +562,7 @@ export default function Home() {
             if (!periodo.includes('2026.1')) return
             
             const flagDesistente = String(row.F_DESISTENTE || '0')
-            if (!['0', '0,000000', ''].includes(flagDesistente)) return
+            if (!['0', '0,000000', '', '0.0'].includes(flagDesistente)) return
             
             const codCampus = getIntPart(row.COD_CAMPUS)
             const codCurso = getIntPart(row.COD_CURSO)
@@ -537,8 +578,25 @@ export default function Home() {
               FIN_DOC: parseNum(row.FIN_DOC_ATUAL),
               MAT_ACAD: parseNum(row.MAT_ACAD_ATUAL),
             })
+            
+            // Ler metas
+            const inscritosMeta = parseNum(row.INSCRITOS_META)
+            const matFinMeta = parseNum(row.MAT_FIN_META)
+            const finDocMeta = parseNum(row.FIN_DOC_META)
+            const matAcadMeta = parseNum(row.MAT_ACAD_META)
+            
+            if (inscritosMeta > 0 || matFinMeta > 0 || finDocMeta > 0 || matAcadMeta > 0) {
+              if (!metaPorSku.has(sku)) {
+                metaPorSku.set(sku, { inscritosMeta: 0, matFinMeta: 0, finDocMeta: 0, matAcadMeta: 0 })
+              }
+              const entry = metaPorSku.get(sku)!
+              entry.inscritosMeta += inscritosMeta
+              entry.matFinMeta += matFinMeta
+              entry.finDocMeta += finDocMeta
+              entry.matAcadMeta += matAcadMeta
+            }
           })
-          console.log(`CAP Excel: ${capData.length} linhas`)
+          console.log(`CAP Excel: ${capData.length} linhas, Metas: ${metaPorSku.size} SKUs`)
         }
       }
     }
@@ -665,30 +723,49 @@ export default function Home() {
     // Metas por campus
     const campusMap = new Map<string, any>()
     capData.forEach(row => {
-      const portfolioRow = portfolioData.find(p => p.SKU === row.SKU)
-      const campus = portfolioRow?.NOME_CAMPUS || ''
+      // Usar dados do capData (CSV tem NOME_CAMPUS e REGIONAL) ou fallback para portfolioData
+      const campus = row.NOME_CAMPUS || portfolioData.find(p => p.SKU === row.SKU)?.NOME_CAMPUS || ''
       if (!campus) return
       
+      const regional = row.REGIONAL || portfolioData.find(p => p.SKU === row.SKU)?.REGIONAL || ''
+      
       if (!campusMap.has(campus)) {
-        campusMap.set(campus, { campus, regional: portfolioRow?.REGIONAL || '', inscritosAtual: 0, matFinAtual: 0, finDocAtual: 0, matAcadAtual: 0 })
+        campusMap.set(campus, { 
+          campus, 
+          regional: regional, 
+          inscritosAtual: 0, matFinAtual: 0, finDocAtual: 0, matAcadAtual: 0,
+          inscritosMeta: 0, matFinMeta: 0, finDocMeta: 0, matAcadMeta: 0
+        })
       }
       const entry = campusMap.get(campus)!
       entry.inscritosAtual += row.INSCRITOS || 0
       entry.matFinAtual += row.MAT_FIN || 0
       entry.finDocAtual += row.FIN_DOC || 0
       entry.matAcadAtual += row.MAT_ACAD || 0
+      
+      // Adicionar metas se existirem
+      const metaSku = metaPorSku.get(row.SKU)
+      if (metaSku) {
+        entry.inscritosMeta += metaSku.inscritosMeta
+        entry.matFinMeta += metaSku.matFinMeta
+        entry.finDocMeta += metaSku.finDocMeta
+        entry.matAcadMeta += metaSku.matAcadMeta
+      }
     })
 
     const metaData = Array.from(campusMap.values())
     const metaTotais = {
-      inscritosMeta: 0, matFinMeta: 0, finDocMeta: 0, matAcadMeta: 0,
+      inscritosMeta: metaData.reduce((s, d) => s + d.inscritosMeta, 0),
+      matFinMeta: metaData.reduce((s, d) => s + d.matFinMeta, 0),
+      finDocMeta: metaData.reduce((s, d) => s + d.finDocMeta, 0),
+      matAcadMeta: metaData.reduce((s, d) => s + d.matAcadMeta, 0),
       inscritosAtual: metaData.reduce((s, d) => s + d.inscritosAtual, 0),
       matFinAtual: metaData.reduce((s, d) => s + d.matFinAtual, 0),
       finDocAtual: metaData.reduce((s, d) => s + d.finDocAtual, 0),
       matAcadAtual: metaData.reduce((s, d) => s + d.matAcadAtual, 0),
       totalCampus: metaData.length,
-      campusComMeta: 0,
-      campusAtingindoMatFin: 0,
+      campusComMeta: metaData.filter(d => d.matFinMeta > 0).length,
+      campusAtingindoMatFin: metaData.filter(d => d.matFinMeta > 0 && d.matFinAtual >= d.matFinMeta).length,
     }
 
     return {
@@ -947,7 +1024,7 @@ export default function Home() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-center">
-                    <PieChart width={300} height={300}>
+                    <PieChart width={350} height={300}>
                       <Pie
                         data={[
                           { name: 'Confirmados', value: data?.totais?.totalConfirmados || 0, fill: '#22c55e' },
@@ -960,11 +1037,16 @@ export default function Home() {
                         paddingAngle={5}
                         dataKey="value"
                         label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                      >
-                        <LabelList position="inside" fill="#fff" formatter={({ percent }) => `${(percent * 100).toFixed(0)}%`} />
-                      </Pie>
-                      <Tooltip />
+                      />
+                      <Tooltip formatter={(value: number) => formatNumber(value)} />
+                      <Legend />
                     </PieChart>
+                  </div>
+                  <div className="text-center mt-2">
+                    <span className="text-green-600 font-semibold">{formatNumber(data?.totais?.totalConfirmados || 0)}</span>
+                    <span className="text-slate-500 mx-2">de</span>
+                    <span className="text-slate-700 font-semibold">{formatNumber(data?.totais?.totalRegistros || 0)}</span>
+                    <span className="text-slate-500 ml-1">turmas confirmadas</span>
                   </div>
                 </CardContent>
               </Card>
@@ -976,17 +1058,22 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data?.porCampus || []} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" tickFormatter={(v) => formatNumber(v)} />
-                      <YAxis type="category" dataKey="campus" tick={{ fontSize: 11 }} width={75} tickFormatter={(v) => abbreviateCampusName(v)} />
-                      <Tooltip formatter={(value: number) => formatNumber(value)} />
-                      <Bar dataKey="matFin" fill="#3b82f6" name="Mat. Financeira">
-                        {data?.porCampus?.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {(data?.porCampus?.length || 0) > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={data?.porCampus || []} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" tickFormatter={(v) => formatNumber(v)} />
+                        <YAxis type="category" dataKey="campus" tick={{ fontSize: 10 }} width={95} tickFormatter={(v) => abbreviateCampusName(v)} />
+                        <Tooltip formatter={(value: number) => formatNumber(value)} />
+                        <Legend />
+                        <Bar dataKey="matFin" name="Mat. Fin." fill="#3b82f6">
+                          {data?.porCampus?.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-slate-500">Sem dados para exibir</div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -997,17 +1084,22 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data?.porCurso || []} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" tickFormatter={(v) => formatNumber(v)} />
-                      <YAxis type="category" dataKey="curso" tick={{ fontSize: 11 }} width={95} />
-                      <Tooltip formatter={(value: number) => formatNumber(value)} />
-                      <Bar dataKey="matFin" fill="#10b981" name="Mat. Financeira">
-                        {data?.porCurso?.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {(data?.porCurso?.length || 0) > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={data?.porCurso || []} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" tickFormatter={(v) => formatNumber(v)} />
+                        <YAxis type="category" dataKey="curso" tick={{ fontSize: 10 }} width={115} />
+                        <Tooltip formatter={(value: number) => formatNumber(value)} />
+                        <Legend />
+                        <Bar dataKey="matFin" name="Mat. Fin." fill="#10b981">
+                          {data?.porCurso?.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-slate-500">Sem dados para exibir</div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1060,27 +1152,83 @@ export default function Home() {
                     </div>
                   </CardHeader>
                   <CardContent>
+                    {/* Resumo Total */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <p className="text-xs text-blue-600 font-medium">Meta Mat. Fin.</p>
+                        <p className="text-xl font-bold text-blue-700">{formatNumber(metaData?.totais?.matFinMeta || 0)}</p>
+                      </div>
+                      <div className="bg-green-50 p-3 rounded-lg">
+                        <p className="text-xs text-green-600 font-medium">Atual Mat. Fin.</p>
+                        <p className="text-xl font-bold text-green-700">{formatNumber(metaData?.totais?.matFinAtual || 0)}</p>
+                      </div>
+                      <div className="bg-purple-50 p-3 rounded-lg">
+                        <p className="text-xs text-purple-600 font-medium">% Atingimento</p>
+                        <p className="text-xl font-bold text-purple-700">
+                          {metaData?.totais?.matFinMeta ? ((metaData.totais.matFinAtual / metaData.totais.matFinMeta) * 100).toFixed(1) : 0}%
+                        </p>
+                      </div>
+                      <div className="bg-amber-50 p-3 rounded-lg">
+                        <p className="text-xs text-amber-600 font-medium">Campus Atingindo</p>
+                        <p className="text-xl font-bold text-amber-700">{metaData?.totais?.campusAtingindoMatFin || 0}/{metaData?.totais?.campusComMeta || 0}</p>
+                      </div>
+                    </div>
+                    
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-slate-100">
                             <TableHead className="font-semibold">Campus</TableHead>
                             <TableHead className="font-semibold">Regional</TableHead>
+                            <TableHead className="font-semibold text-right">Meta Mat. Fin.</TableHead>
                             <TableHead className="font-semibold text-right">Atual Mat. Fin.</TableHead>
+                            <TableHead className="font-semibold text-right">% Atingido</TableHead>
+                            <TableHead className="font-semibold">Progresso</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredCampusData.slice(0, 30).map((row, index) => (
-                            <TableRow key={index} className="hover:bg-slate-50">
-                              <TableCell className="font-medium text-xs">{abbreviateCampusName(row.campus)}</TableCell>
-                              <TableCell className="text-xs">{row.regional}</TableCell>
-                              <TableCell className="text-right text-xs font-semibold text-green-600">{formatNumber(row.matFinAtual)}</TableCell>
+                          {filteredCampusData.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center py-8 text-slate-500">
+                                <AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                                <p>Nenhum dado disponível</p>
+                                <p className="text-xs mt-1">Faça upload do arquivo CRIVO (com aba CAP_CT) para ver metas</p>
+                              </TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            filteredCampusData.slice(0, 50).map((row, index) => {
+                              const percAtingido = row.matFinMeta > 0 ? (row.matFinAtual / row.matFinMeta) * 100 : 0
+                              const atingindoMeta = row.matFinMeta > 0 && row.matFinAtual >= row.matFinMeta
+                              return (
+                                <TableRow key={index} className="hover:bg-slate-50">
+                                  <TableCell className="font-medium text-xs">{abbreviateCampusName(row.campus)}</TableCell>
+                                  <TableCell className="text-xs">{row.regional}</TableCell>
+                                  <TableCell className="text-right text-xs font-semibold text-blue-600">{row.matFinMeta > 0 ? formatNumber(row.matFinMeta) : '-'}</TableCell>
+                                  <TableCell className="text-right text-xs font-semibold text-green-600">{formatNumber(row.matFinAtual)}</TableCell>
+                                  <TableCell className="text-right text-xs">
+                                    {row.matFinMeta > 0 ? (
+                                      <span className={`px-2 py-1 rounded font-semibold ${atingindoMeta ? 'bg-green-100 text-green-700' : percAtingido >= 70 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                        {percAtingido.toFixed(1)}%
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="w-32">
+                                    {row.matFinMeta > 0 ? (
+                                      <Progress value={Math.min(percAtingido, 100)} className="h-2" />
+                                    ) : (
+                                      <span className="text-slate-400 text-xs">sem meta</span>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })
+                          )}
                         </TableBody>
                       </Table>
                     </div>
-                    {filteredCampusData.length > 30 && <p className="text-center text-slate-500 text-sm mt-4">Mostrando 30 de {filteredCampusData.length} campus</p>}
+                    {filteredCampusData.length > 50 && <p className="text-center text-slate-500 text-sm mt-4">Mostrando 50 de {filteredCampusData.length} campus</p>}
                   </CardContent>
                 </Card>
               </>
@@ -1293,8 +1441,10 @@ export default function Home() {
               )}
 
               <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded space-y-1">
-                <p><strong>Primeira vez:</strong> Envie o Portfolio.xlsx</p>
-                <p><strong>Depois:</strong> Envie apenas o CAP_2026.csv para atualizar números</p>
+                <p><strong>⚠️ Importante:</strong></p>
+                <p>• O arquivo <strong>CSV CAP</strong> não tem colunas de meta preenchidas</p>
+                <p>• Para ver <strong>Meta vs Real</strong>, envie o arquivo <strong>CRIVO Excel</strong> completo</p>
+                <p>• O CRIVO tem a aba CAP_CT com as metas definidas</p>
               </div>
               
               <Button variant="outline" className="w-full text-red-600 border-red-300 hover:bg-red-50" onClick={handleClearData}>

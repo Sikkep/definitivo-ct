@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         arquivosProcessados: allFiles.length,
         arquivos: processedFiles,
         crivoRegistros: processedCrivo.data.length,
-        metaRegistros: processedMeta.campusSummary?.length || processedMeta.data?.length || 0,
+        metaRegistros: processedMeta.campusSummary?.length || 0,
       },
     });
 
